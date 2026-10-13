@@ -1,5 +1,7 @@
 # Antigravity Gemini Subagent
 
+English | [简体中文](README.zh-CN.md)
+
 A Codex skill for supervising bounded Gemini tasks through native Antigravity CLI (`agy`), with exact conversation continuation and verified native account switching through Antigravity Tools.
 
 The main agent supplies tasks and independently verifies answers. Python handles CLI invocation, protocol checks, identity, bounded retry state and native-switch postconditions. The worker does not inherit the main conversation. Quota recovery is a supervised sequence, not a background account rotator.
