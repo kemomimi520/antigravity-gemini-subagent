@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 
 This skill brings the native Antigravity CLI into a Codex workflow. Ask Gemini for another code review, help with a reasoning problem, or file work in a chosen project. Codex checks the result and brings it back into your task.
 
-If an account runs out of quota partway through, Codex can use Antigravity Tools to switch to another existing account, verify the switch, and resume the original Gemini conversation.
+If an account runs out of quota partway through, Codex can use the bundled account core to switch to another existing account, verify the switch, and resume the original Gemini conversation.
 
 ## Features
 
@@ -24,7 +24,7 @@ Use it for a focused part of a larger task or an independent check of a conclusi
 
 ### 1. Prepare your environment
 
-The complete workflow currently supports **Windows**. Install Python, the native [Antigravity CLI](https://antigravity.google/docs/cli/getting-started/) and [Antigravity Tools](https://github.com/lbjlaq/Antigravity-Manager), with an account already signed in and eligible for your chosen model.
+The complete workflow currently supports **Windows**. Install Python and the native [Antigravity CLI](https://antigravity.google/docs/cli/getting-started/), with an account already signed in and eligible for your chosen model. Account operations are bundled, so Antigravity Tools installation is optional.
 
 Runtime helpers use only the Python standard library; Python 3.11 has been tested. Models are discovered from the CLI, with no daily-version allowlist.
 
@@ -108,25 +108,25 @@ See the [task protocol](references/protocol.md) for options, JSON schemas and re
 
 </details>
 
-## Is Antigravity Tools required?
+## Do I still need Antigravity Tools?
 
-**Yes, in the current implementation.** Besides quota refresh and native switching, ordinary tasks use its account inventory to verify the CLI's actual identity. Model requests still go through native `agy`; they do not require the manager's inference-proxy API.
+**Not by default.** The relevant Antigravity Tools account logic has been adapted into a Python module for local enrollment, OAuth refresh, quota queries, and synchronization of Windows credentials, CLI credential files and applicable device profiles.
 
-Without it, skill files can be installed, but environment checks report `NOT_READY` and real worker tasks cannot run normally. The request above includes missing dependencies, so the model can follow the [installation guide](references/installation.md) to obtain missing software from upstream sources. You complete account sign-in. A request to install only the skill reports missing dependencies without installing other software.
+If you have no Tools installation, sign in through the native CLI and run `register-current` once to enroll that account. Existing Tools account data can also be reused. The default account directory remains `.antigravity_tools`, but the builtin backend needs no GUI configuration, manager executable or local management service. See the [installation guide](references/installation.md).
 
-Missing software differs from a stopped application: with valid configuration and account data, ordinary identity checks can use local cache; refresh and switching require the management service. There is currently no CLI-only standalone single-account mode.
+The desktop manager remains an optional backend: `--account-backend tools`. Features not included in the port, such as its independent proxy-pool account bindings, require that backend. The builtin core rejects unsupported network bindings rather than silently choosing another route. See [bundled account operations](references/native-accounts.md).
 
 ## How it works
 
-Native `agy` sends model requests to Gemini. Antigravity Tools handles account management and native switching. **This project does not use the manager's inference-proxy API.** The CLI can inherit your existing HTTP network proxy.
+Native `agy` sends model requests to Gemini. The bundled core handles account operations by default. **This project does not use an inference-proxy API.** CLI and account requests can inherit your existing HTTP network proxy.
 
-Switching uses Antigravity Tools' credential and device-profile logic, followed by identity and applicable storage checks. Conversations resume with an explicit `conversation_id`. If a previous call changed files, Codex checks completed effects before continuing so that work is not repeated.
+The account core adapts Antigravity Tools' credential formats, device fields and switching sequence, followed by identity and applicable storage checks. Conversations resume with an explicit `conversation_id`. If a previous call changed files, Codex checks completed effects before continuing so that work is not repeated.
 
 Codex coordinates quota recovery: confirm exhaustion → refresh existing account quotas → switch natively and verify → resume the original conversation. Network errors, service overload and authentication failures do not trigger switching. See [account switching](references/account-switch.md) and [conversation continuation](references/conversation.md).
 
 ## Validation and limits
 
-Live Windows checks cover Gemini calls, model and effort selection, structured output, file work, and continuation across a native account switch. GitHub CI runs synthetic offline regressions and source checks without real accounts.
+Live Windows checks cover Gemini calls, model and effort selection, structured output, file work, and continuation across a native account switch. Bundled-core acceptance also verifies fresh-store enrollment, direct quota refresh for 8 accounts, and switching/continuation without calling a Tools service; original credentials and file contents were restored afterward. GitHub CI runs synthetic offline regressions and source checks without real accounts.
 
 The complete recovery path triggered by genuinely exhausted quota has not been live-tested. Legacy fingerprint-store writes have synthetic and source-review coverage only. Model verification checks the CLI-selected name, not the server's internal model identifier. See [test coverage](references/test-workflow.md).
 
@@ -139,6 +139,7 @@ Native CLI and Antigravity 2.0 share Windows account credentials, so account swi
 - [Environment setup](references/environment.md): dependencies, paths, network and preflight.
 - [Task protocol](references/protocol.md): inputs, results, tool permissions and failure states.
 - [Account switching](references/account-switch.md): credentials, device profiles, checks and recovery.
+- [Bundled account operations](references/native-accounts.md): enrollment without the desktop tool and backend selection.
 - [Conversation continuation](references/conversation.md): follow-ups and file checkpoints.
 - [Test workflow](references/test-workflow.md): offline checks and live acceptance.
 
@@ -153,4 +154,4 @@ Commit source, documentation and synthetic tests only. Keep account credentials,
 
 ## License
 
-License pending.
+This project uses [CC BY-NC-SA 4.0](LICENSE): attribution, noncommercial use and share-alike. The bundled account core derives from [Antigravity Tools](https://github.com/lbjlaq/Antigravity-Manager); see [NOTICE.md](NOTICE.md) for source attribution and modifications. Commercial use requires appropriate additional permission from the relevant rights holders.

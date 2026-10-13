@@ -44,7 +44,8 @@ spec=importlib.util.spec_from_file_location('w',sys.argv[1])
 worker=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
 paths=worker.sibling_module('runtime_paths')
-manager=worker.Manager(sys.argv[2] or None)
+from types import SimpleNamespace
+manager=worker.account_service(SimpleNamespace(account_backend='builtin',manager_dir=sys.argv[2] or None))
 settings=paths.settings_path(sys.argv[3] or None)
 print(json.dumps([str(manager.directory),str(settings),*[str(path.parent) for path in worker.fingerprint_storage_paths(manager)]]))
 '@
@@ -59,9 +60,9 @@ $backupPaths = @($backupPaths | Select-Object -Unique)
     -PlannedCommands @(
         'Use installed agy for bounded Gemini worker tasks in the caller-authorized workspace',
         'Update the installed Gemini subagent skill only after staged regression and real CLI verification; preserve a reversible source snapshot',
-        'Refresh existing account quotas through the local Antigravity Tools manager when needed',
+        'Use the bundled licensed native account core to register the already logged-in CLI identity, refresh quotas and switch existing accounts; retain optional Antigravity Tools backend',
         'Use headless manager for quota refresh and native desktop backend for switching when explicitly requested; no simulated clicks',
-        'Invoke the installed manager native one-click POST /api/accounts/switch with explicit targetIde agy; verify OS/file credentials and bound fingerprint storage/database',
+        'Apply the upstream-compatible agy credential/file/device-profile integration with readback verification; Tools backend may use its native switch API',
         'Preserve account metadata and restore a failed completed switch; leave a submitted switch with unknown outcome running for inspection',
         'Do not upgrade software, modify system proxy or permissions, or close IDE/2.0 without task authorization'
     ) -IncludePaths $backupPaths

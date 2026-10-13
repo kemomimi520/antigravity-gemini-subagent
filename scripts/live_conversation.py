@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--account-ref', help='existing alternative account for the native switch')
     parser.add_argument('--cli', default=str(w.sibling_module('runtime_paths').cli_path()))
     parser.add_argument('--manager-dir')
+    parser.add_argument('--account-backend', choices=('builtin', 'tools'), default='builtin')
     parser.add_argument('--manager-cli')
     parser.add_argument('--settings-file')
     parser.add_argument('--timeout', type=int, default=180)
@@ -27,7 +28,7 @@ def main():
     job = Path(args.workspace).resolve() / ('conversation-' + stamp)
     audit.mkdir(parents=True)
     job.mkdir(parents=True)
-    manager = w.Manager(args.manager_dir)
+    manager = w.account_service(args)
     baseline = w.identify(manager)
     index_path = manager.directory / 'accounts.json'
     baseline_index = w.read_json(index_path)
@@ -76,7 +77,7 @@ def main():
             task['json_schema'] = schema
         task_path = audit / ('input-' + name + '.json')
         w.save_json(task_path, task)
-        return w.run_worker(SimpleNamespace(task=str(task_path), cli=args.cli, workspace=str(job),
+        return w.run_worker(SimpleNamespace(account_backend=args.account_backend, task=str(task_path), cli=args.cli, workspace=str(job),
                             audit_dir=str(audit), preflight_dir=args.preflight_dir, timeout=args.timeout,
                             manager_dir=args.manager_dir, settings_file=args.settings_file))
 

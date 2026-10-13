@@ -1,6 +1,6 @@
 ---
 name: antigravity-gemini-subagent
-description: Delegate bounded Gemini tasks through native Antigravity CLI, resume explicit conversations, and recover verified exhausted account quota through Antigravity Tools. Use for supervised Gemini worker calls and native account continuation, not inference proxies or IDE UI automation.
+description: Delegate bounded Gemini tasks through native Antigravity CLI, resume explicit conversations, and recover verified exhausted quota using the bundled native account core. Antigravity Tools is an optional backend. Use for supervised Gemini worker calls, not inference proxies or IDE UI automation.
 ---
 
 # Antigravity Gemini Subagent
@@ -9,7 +9,9 @@ Use native `agy` as an external worker. It does not inherit the main agent's con
 
 ## Prepare
 
-Read [environment.md](references/environment.md) for first use, missing dependencies or path overrides. The full workflow requires Windows, an authenticated eligible CLI account, existing Antigravity Tools accounts, and the managed preflight contract. Use the existing host preflight when present, otherwise the bundled fallback; neither copying nor invoking the skill transfers authorization to elevate.
+Read [environment.md](references/environment.md) for first use, missing dependencies or path overrides. The full workflow requires Windows, Python, an authenticated eligible native CLI account, an initialized upstream-compatible account store, and the managed preflight contract. The bundled native account core is the default; installing Antigravity Tools is optional. Use the existing host preflight when present, otherwise the bundled fallback; neither copying nor invoking the skill transfers authorization to elevate.
+
+For a fresh account store, register the already signed-in CLI identity under a valid receipt with `workflow.py register-current --audit-dir <audit-dir> --preflight-dir <receipt>`. This verifies Google userinfo and stores credentials locally; it does not create accounts or perform consent. Read [native-accounts.md](references/native-accounts.md) for enrollment, scope and optional `--account-backend tools`. Keep unsupported per-account proxy bindings on the Tools backend rather than dropping their configured route. Read [installation.md](references/installation.md) when asked to install the skill and dependencies.
 
 Run the read-only `doctor` after installation changes. It inspects local configuration without starting applications; it does not prove live eligibility or refreshed quota. Discover models under a valid preflight receipt. Preserve the user's model and effort; choose a Gemini slug actually returned by the CLI. Check capabilities and postconditions instead of version allowlists.
 
@@ -63,7 +65,7 @@ Start with the current verified CLI account. Rotate only after exit 20 / `QUOTA_
    python <skill>/scripts/workflow.py accounts --model <same-model> --refresh --start-manager --exclude <attempted-ref> --audit-dir <audit-dir> --preflight-dir <receipt>
    ```
 
-2. Invoke native Antigravity Tools switching and verify actual CLI identity and explicit `agy` target.
+2. Invoke the selected native account backend and verify actual CLI identity and explicit `agy` target. The builtin backend starts no manager application; `--start-manager` is only relevant when Tools is explicitly selected.
 
    ```powershell
    python <skill>/scripts/workflow.py switch --account-ref <selected-ref> --start-manager --audit-dir <audit-dir> --preflight-dir <receipt>
@@ -76,7 +78,7 @@ Stop on no fresh eligible account, a non-quota failure, identity/switch failure,
 
 Read [account-switch.md](references/account-switch.md) before switching: native `agy` and Antigravity 2.0 share Windows credentials. Serialize the whole recovery workflow; a per-operation lock cannot prevent another GUI/session from changing credentials. Existing sessions may write cached credentials back. Do not terminate user sessions automatically.
 
-The worker uses native CLI inference, not the manager's inference-proxy API. Network traffic may inherit HTTP proxy settings. Manager control requests remain on loopback with proxies/redirects disabled. Never send manager tokens or account records to Gemini.
+The worker uses native CLI inference. The builtin core sends OAuth/quota/identity requests only to fixed Google HTTPS origins, with redirects refused; it does not proxy inference. Network traffic may inherit HTTP proxy settings. Optional Tools control requests remain on loopback with proxies/redirects disabled. Never send account tokens or records to Gemini. Preserve LICENSE and NOTICE when distributing the CC BY-NC-SA adaptation.
 
 ## Test and report
 

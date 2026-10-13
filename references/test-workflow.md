@@ -28,7 +28,7 @@ Meaningful negative cases: stale/future/unknown/NaN quota; exhausted window desp
 
 Do not install/upgrade software or deliberately exhaust quota. Follow host preflight/elevation rules; preserve starting identity/selection/settings.
 
-1. Diagnose and preflight actual manager/settings paths. Discover models and retain requested effort, without version gate.
+1. Diagnose and preflight actual account/settings paths. Default to builtin; Tools mode must be explicit. Discover models and retain requested effort, without version gate.
 2. Run isolated tool-free exact token task: `Return exactly GEMINI_WORKER_OK_437. Do not call tools.` Independently verify token, init model, identity, conversation and zero tools.
 3. Run bounded synthetic reasoning/schema cases; independently verify values.
 4. For authorized file cases, inspect real file content/diff and settings restoration. Permission denial is incomplete; plan mode is not isolation.
@@ -43,3 +43,7 @@ Use `scripts/live_matrix.py --workspace <job-dir> --audit-dir <audit-dir> --pref
 Use `scripts/live_conversation.py --model <discovered-slug> --workspace <job-dir> --audit-dir <audit-dir> --preflight-dir <receipt>` for authorized continuation.
 
 Prior evidence established real response, native switch/return, exact-ID cross-account resume and checkpointed file work. No actual legacy fingerprint/database write occurred because stores were absent. Complete live recovery after genuine exhaustion remains unobserved. Keep runtime evidence local and public fixtures synthetic.
+
+On 2026-10-13, bundled-core acceptance established current-CLI enrollment in a fresh account store with no GUI config, a real tool-free structured Gemini call, direct quota refresh for 8 existing accounts, same-family tiered quota ranking, native alternate-account switch, explicit-ID cross-account context/schema/file continuation, and return to baseline. The manager executable override pointed to an absent path, and no Tools service was used. Exact original Windows credential and existing credential/settings file bytes were restored. Private live fixtures and evidence are excluded from distribution. The test host still had Tools installed; it was neither started/called by the builtin workflow nor uninstalled to manufacture a clean machine.
+
+The first model-discovery attempt was blocked because the harness had not created its job directory; it issued no model request. Initial fresh quota data also exposed a CLI effort-name versus upstream `-tiered` name mismatch. Both failures were retained; the harness directory and same-family quota lookup were corrected and subsequently verified. Neither condition was treated as exhausted account quota. Legacy fingerprint stores were absent, and actual exhausted-quota-triggered recovery remains unobserved.

@@ -140,3 +140,32 @@ The paths must stay under the caller's ownership during this operation.
         os.chmod(replacement, mode)
         if stat.S_IMODE(replacement.stat().st_mode) != mode:
             raise OSError(errno.EIO, 'Replacement mode readback mismatch')
+
+
+def protect_new_private_file(path):
+    """Protect an owned empty file before its first private contents are written."""
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_size:
+        raise OSError(errno.EINVAL, 'Private file protection requires an empty regular file')
+    if not WINDOWS:
+        os.chmod(path, 0o600)
+        return
+    api = _load_api()
+    convert = api.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    convert.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.DWORD)]
+    convert.restype = wintypes.BOOL
+    descriptor = ctypes.c_void_p()
+    # Owner Rights grants the creator access; SYSTEM retains its normal access.
+    if not convert('D:P(A;;FA;;;OW)(A;;FA;;;SY)', 1, ctypes.byref(descriptor), None):
+        raise _api_error('Private security descriptor conversion')
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    try:
+        if not api.SetFileSecurityW(str(path), DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, descriptor):
+            raise _api_error('Private file security')
+        observed = _read_security(api, path)
+        if not observed.protected or observed.dacl is None or observed.dacl == ('null',):
+            raise OSError(errno.EIO, 'Private file DACL readback failed')
+    finally:
+        kernel.LocalFree(descriptor)

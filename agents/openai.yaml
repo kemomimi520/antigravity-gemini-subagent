@@ -1,4 +1,4 @@
 interface:
   display_name: "Antigravity Gemini Subagent"
   short_description: "Gemini CLI delegation with verified quota recovery"
-  default_prompt: "Use $antigravity-gemini-subagent to delegate a bounded task to Gemini through the installed CLI and recover from exhausted quota using Antigravity Tools."
+  default_prompt: "Use $antigravity-gemini-subagent to delegate a bounded task to Gemini through native CLI and recover verified exhausted quota using the bundled native account core."

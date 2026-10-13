@@ -1,6 +1,6 @@
 # Conversation continuation and checkpoints
 
-Use native `--conversation <id>` in a new process after identity verification. Credentials/profile come from Antigravity Tools; retained native conversation state supplies context. Do not copy credentials into conversations, edit conversation stores or select latest with `--continue`.
+Use native `--conversation <id>` in a new process after identity verification. The selected native account backend supplies credentials/profile; retained native conversation state supplies context. Builtin is the default and does not require the Tools desktop application. Do not copy credentials into conversations, edit conversation stores or select latest with `--continue`.
 
 ## Follow-up turns
 

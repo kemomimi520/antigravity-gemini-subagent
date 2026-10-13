@@ -24,7 +24,7 @@ class DoctorChecks(unittest.TestCase):
         self.settings.write_text('{"permissions":{"allow":[]}}')
         self.paths = SimpleNamespace(cli_path=lambda explicit: self.cli,
             settings_path=lambda explicit: self.settings, manager_executable=lambda explicit: self.cli)
-        self.args = SimpleNamespace(cli=None, settings_file=None, manager_cli=None, manager_dir=None, preflight_dir='synthetic')
+        self.args = SimpleNamespace(account_backend='tools', cli=None, settings_file=None, manager_cli=None, manager_dir=None, preflight_dir='synthetic')
         self.manager = SimpleNamespace(accounts=lambda **kw: [{'id': 'synthetic'}], inventory_source='local_cache')
 
     def inspect(self, receipt_error=None, manager_error=None, lock_error=None):

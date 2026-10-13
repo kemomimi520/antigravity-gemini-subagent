@@ -4,17 +4,17 @@ For model-assisted installation and missing dependencies, follow [installation.m
 
 ## Supported environment
 
-The full workflow is implemented and live-tested on Windows. It uses Windows Credential Manager, PowerShell process discovery and the native Antigravity Tools desktop integration. Do not claim Linux/macOS support from upstream manager support or passing pure-Python fixtures.
+The full workflow targets Windows. It uses Windows Credential Manager and PowerShell process discovery, with a bundled account core adapted from Antigravity Tools. The desktop manager remains an optional backend. Do not claim Linux/macOS support from upstream manager support or passing pure-Python fixtures.
 
-Runtime and offline tests use the Python standard library; Python 3.11 has been tested. Choose a working interpreter by required features, not an exact patch-version gate. The CLI and manager must already be installed; these helpers do not install, upgrade or log into them.
+Runtime and offline tests use the Python standard library; Python 3.11 has been tested. Choose a working interpreter by required features, not an exact patch-version gate. Native CLI must already be installed and signed in. Runtime helpers do not install software or perform login; follow the installation guide when setting up dependencies.
 
 Required state:
 
 - A logged-in native CLI account eligible for the chosen model.
-- Antigravity Tools configuration and existing account inventory. Ordinary worker identity checks also use this inventory.
-- The same Windows user's credential context for helper, CLI and manager.
+- An upstream-compatible local account inventory. Existing Tools data can be reused; otherwise register the logged-in CLI identity with `register-current` under a valid preflight receipt.
+- The same Windows user's credential context for helper and CLI (and optional Tools).
 - The managed preflight provider below for CLI execution, refresh, switching and temporary settings changes.
-- Outbound connectivity for native CLI and authorized quota refresh; manager administration stays on loopback.
+- Outbound connectivity for native CLI and authorized Google account operations. Optional Tools administration stays on loopback.
 
 ## Paths
 
@@ -23,13 +23,13 @@ Command flags take precedence over environment variables and discovered/default 
 | Setting | Override | Environment variable | Discovery/default |
 | --- | --- | --- | --- |
 | Native CLI | `models/run/doctor --cli` | `AGY_SUBAGENT_CLI` | Installed CLI/PATH and conventional local installation |
-| Manager executable | `--manager-cli` | `AGY_SUBAGENT_MANAGER_CLI` | Running process, PATH and conventional installation locations |
-| Manager data | `--manager-dir` | `AGY_SUBAGENT_MANAGER_DIR` | User profile `.antigravity_tools` |
+| Optional Tools executable | `--manager-cli` | `AGY_SUBAGENT_MANAGER_CLI` | Running process, PATH and conventional installation locations; Tools backend only |
+| Account data | `--account-dir` / `--manager-dir` | `AGY_SUBAGENT_MANAGER_DIR` | User profile `.antigravity_tools`, retained for data compatibility |
 | File-permission settings | `run/doctor --settings-file` | `AGY_SUBAGENT_SETTINGS` | User profile `.gemini/antigravity-cli/settings.json` |
 
-Manager overrides are accepted by all workflow entrypoints; the executable is used only for relevant diagnostics/startup. Use explicit paths when discovery is absent or ambiguous. Binary hashes are audit metadata, not permission to execute an unexpected binary.
+Account-directory and backend overrides are accepted by all workflow entrypoints. `--account-backend builtin` is the default; it never discovers or starts the manager executable. `--account-backend tools` uses the optional desktop backend. Use explicit paths when discovery is absent or ambiguous. Binary hashes are audit metadata, not permission to execute an unexpected binary.
 
-The settings override selects the file the helper temporarily edits. It does **not** change where `agy` loads configuration. Point it at the actual native settings file; otherwise the grant may have no effect. Manager data must describe the backend being used.
+The settings override selects the file the helper temporarily edits. It does **not** change where `agy` loads configuration. Point it at the actual native settings file; otherwise the grant may have no effect. On Tools, the data directory must describe that backend. On builtin, GUI configuration and local management authentication are not required. See [native-accounts.md](native-accounts.md) for scope and unsupported proxy-pool account bindings.
 
 Run `workflow.py doctor --audit-dir <audit-dir>` after configuration changes. Doctor inspects local prerequisites without starting CLI/manager, refreshing quota, switching identity or modifying settings. Its audit output is a workspace write. A healthy report does not substitute for live acceptance or preflight.
 
@@ -45,13 +45,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/prepare.ps1 
 
 Do not bypass the restore-point gate or invent receipts. The helper expects a receipt below `<user-profile>/.codex/rollback/`, action `gemini-cli-skill` or `gemini-cli-subagent`, age at most 24 hours, and nonempty `planned-commands.txt`, `system-state.txt`, `restore-point.txt` and `ROLLBACK.md`. Restore evidence must record a created or recent restore point. This is a local audit check, not cryptographically authenticated authorization.
 
-`models`, `run`, `switch` and `accounts --refresh` require receipts. Local `doctor`, cached `accounts`, `identify`, offline tests and workspace documentation do not. Backups may contain full credentials: keep them local, out of source control. Ensure custom paths/effective fingerprint stores are covered by the selected preflight provider.
+`models`, `run`, `switch`, `register-current` and `accounts --refresh` require receipts. Local `doctor`, cached `accounts`, `identify`, offline tests and workspace documentation do not. Backups may contain full credentials: keep them local, out of source control. Ensure custom paths/effective fingerprint stores are covered by the selected preflight provider.
 
 ## Connectivity and shared state
 
 The CLI preserves explicit proxy environment variables. Otherwise the helper can pass a simple enabled Windows user HTTP proxy to the child only. It does not change system proxy settings. Complex per-protocol strings require explicit configuration instead of guessed conversion. CLI child auto-update is disabled; there is no version allowlist.
 
-The manager client uses `127.0.0.1`, the configured management port and in-memory authentication. It bypasses inherited proxies and refuses redirects. No manager chat/completions endpoint is used.
+Builtin account transport uses fixed Google HTTPS origins, applicable HTTP/HTTPS proxy settings and no redirects. It never calls a local manager endpoint or inference proxy. Optional Tools control uses `127.0.0.1`, the configured management port and in-memory authentication, with inherited proxies/redirects disabled. No manager chat/completions endpoint is used.
 
 One native Windows credential is shared. The helper's operation lock does not isolate interactive sessions, manager GUI or Antigravity 2.0. Coordinate the entire switch/resume sequence. Do not promise independent per-worker accounts or an OS sandbox.
 

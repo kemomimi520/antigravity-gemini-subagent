@@ -1,4 +1,4 @@
-"""Antigravity CLI worker, quota selection and verified native-manager account switching."""
+"""Antigravity CLI worker with bundled native accounts and optional Tools backend."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ import socket
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 import urllib.error
 import urllib.request
 import urllib.parse
@@ -93,13 +94,15 @@ def safe_object(value):
     return value
 
 
-def atomic_write(path, data):
+def atomic_write(path, data, *, private=False):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
     with temporary.open("xb") as stream:
         if path.exists():
             sibling_module("file_security").preserve_replacement_security(path, temporary)
+        elif private:
+            sibling_module("file_security").protect_new_private_file(temporary)
         stream.write(data)
     os.replace(temporary, path)
 
@@ -290,11 +293,25 @@ class Manager:
             raise WorkflowError("NATIVE_SWITCH_OUTCOME_UNKNOWN: inspect identity before further action") from None
 
 
+def account_service(args):
+    """Use the bundled native core unless Tools is explicitly selected."""
+    backend = getattr(args, "account_backend", "builtin")
+    if backend == "builtin":
+        return sibling_module("native_accounts").NativeAccounts(getattr(args, "manager_dir", None),
+                sys.modules.get(__name__) or SimpleNamespace(**globals()))
+    if backend == "tools":
+        return Manager(getattr(args, "manager_dir", None))
+    raise WorkflowError("INVALID_ACCOUNT_BACKEND")
+
+
 @contextlib.contextmanager
 def manager_session(manager, *, start=False, executable=None, preflight_dir=None, timeout=30, mode="headless"):
     """Reuse a running manager; explicitly start headless refresh or native desktop switching."""
     if mode not in {"headless", "desktop"}:
         raise WorkflowError("INVALID_MANAGER_MODE")
+    if getattr(manager, "is_builtin", False) is True:
+        yield manager
+        return
     if not start:
         yield manager
         return
@@ -374,6 +391,16 @@ def rank_accounts(accounts, model, *, now=None, max_age=300, refreshed_after=Non
         quota = account.get("quota") or {}
         if not isinstance(quota, dict):
             quota = {}
+        models = quota.get("models", [])
+        matches = [item for item in models if isinstance(item, dict) and item.get("name") == model] if isinstance(models, list) else []
+        quota_model = model
+        effort_match = re.fullmatch(r"(gemini-[a-zA-Z0-9._-]+)-(low|medium|high)", model)
+        if not matches and effort_match and isinstance(models, list):
+            tiered = effort_match[1] + "-tiered"
+            matches = [item for item in models if isinstance(item, dict) and item.get("name") == tiered]
+            if matches:
+                quota_model = tiered
+        guarded_models = {model, quota_model}
         # proxy_disabled controls the manager's API routing, not native CLI access.
         for flag in ("disabled", "validation_blocked"):
             if account.get(flag) is not False:
@@ -386,24 +413,24 @@ def rank_accounts(accounts, model, *, now=None, max_age=300, refreshed_after=Non
         protected = account.get("protected_models", [])
         if not isinstance(protected, list) or any(not isinstance(v, str) for v in protected):
             reasons.append("invalid_protected_models")
-        elif model in protected:
+        elif any(value in protected for value in guarded_models):
             reasons.append("protected_models")
         limited = account.get("live_limited_models", {})
         if not isinstance(limited, dict):
             reasons.append("invalid_live_limited_models")
-        elif model in limited:
-            limit = limited[model]
-            if not isinstance(limit, dict) or not number(limit.get("until"), 0, 1e12):
-                reasons.append("invalid_live_limit")
-            elif limit["until"] > now or limit["until"] == 0:
-                reasons.append("live_limited_models")
+        else:
+            for guarded in guarded_models:
+                if guarded in limited:
+                    limit = limited[guarded]
+                    if not isinstance(limit, dict) or not number(limit.get("until"), 0, 1e12):
+                        reasons.append("invalid_live_limit")
+                    elif limit["until"] > now or limit["until"] == 0:
+                        reasons.append("live_limited_models")
         updated = quota.get("last_updated")
         if not number(updated, 0, 1e12) or not -30 <= now - updated <= max_age:
             reasons.append("stale_or_unknown_quota")
         if refreshed_after is not None and (not number(updated, 0, 1e12) or updated < refreshed_after):
             reasons.append("not_refreshed_this_round")
-        models = quota.get("models", [])
-        matches = [item for item in models if isinstance(item, dict) and item.get("name") == model] if isinstance(models, list) else []
         values = []
         if len(matches) != 1:
             reasons.append("missing_or_ambiguous_model")
@@ -445,6 +472,7 @@ def rank_accounts(accounts, model, *, now=None, max_age=300, refreshed_after=Non
         if ref in exclude:
             reasons.append("already_attempted")
         rows.append({"account_ref": ref, "eligible": not reasons, "score_percent": score,
+                     "quota_model": quota_model,
                      "last_updated": updated if number(updated, 0, 1e12) else None,
                      "is_cli_current": ref == current_ref, "manager_current": account.get("is_current") is True,
                      "buckets": buckets, "reasons": reasons})
@@ -563,7 +591,8 @@ def native_credential_matches(observed, account):
 
 def fingerprint_storage_paths(manager, *, process_records=None):
     """Resolve the native agy/classic storage priority, not any matching legacy profile."""
-    config = read_json(manager.directory / "gui_config.json")
+    config_path = manager.directory / "gui_config.json"
+    config = read_json(config_path) if config_path.is_file() else ({} if getattr(manager, "is_builtin", False) is True else read_json(config_path))
     args = config.get("antigravity_args") or []
     if not isinstance(args, list) or any(not isinstance(arg, str) for arg in args):
         raise WorkflowError("FINGERPRINT_PATH_DISCOVERY_FAILED")
@@ -647,7 +676,7 @@ def fingerprint_matches(data, profile):
 
 def update_cli_target(manager, account_ref_value, *, refresh_token=True, reader=read_cli_credential_payload,
                       writer=write_cli_credential_payload, credential_directory=None, storage_paths=None):
-    """Delegate switching to the manager's complete native action; Win32 writes are rollback only."""
+    """Run and verify the selected native account backend, with owned recovery."""
     if not re.fullmatch(r"acct-[0-9a-f]{12}", account_ref_value or ""):
         raise WorkflowError("INVALID_ACCOUNT_REF")
     accounts = manager.accounts()
@@ -746,6 +775,11 @@ def update_cli_target(manager, account_ref_value, *, refresh_token=True, reader=
             if row != (profile["dev_device_id"],):
                 raise WorkflowError("NATIVE_SWITCH_DATABASE_FINGERPRINT_READBACK_FAILED")
     except Exception as error:
+        if getattr(manager, "is_builtin", False) is True:
+            failures = manager.restore_owned_switch()
+            if failures:
+                raise WorkflowError("SWITCH_ROLLBACK_INCOMPLETE: " + ",".join(failures)) from error
+            raise
         if str(error).startswith(("NATIVE_SWITCH_OUTCOME_UNKNOWN", "MANAGER_SWITCH_HTTP_409")):
             manager.preserve_process_due_unknown_switch = True
             raise
@@ -810,8 +844,10 @@ def update_cli_target(manager, account_ref_value, *, refresh_token=True, reader=
             raise WorkflowError("SWITCH_ROLLBACK_INCOMPLETE: " + ",".join(failures)) from error
         raise
     return {"status": "SWITCHED", "account_ref": account_ref_value, "target_ide": "agy",
-            "switch_method": "manager_native_api", "credential_scope": "shared_cli_and_2.0",
-            "token_refreshed_via_manager": True, "quota_refreshed_via_manager": refresh_token,
+            "switch_method": response.get("switch_method", "manager_native_api"), "credential_scope": "shared_cli_and_2.0",
+            "account_backend": "builtin" if getattr(manager, "is_builtin", False) is True else "tools",
+            "token_refreshed_via_manager": getattr(manager, "is_builtin", False) is not True,
+            "quota_refreshed_via_manager": refresh_token and getattr(manager, "is_builtin", False) is not True,
             "fallback_credentials_verified": True, "bound_fingerprint_verified": True,
             "native_cli_file_status": "verified" if native_cli_file.is_file() else "not_present",
             "fingerprint_storage_status": "verified_existing_storage" if storage_paths else "no_legacy_storage_present",
@@ -1160,7 +1196,7 @@ def run_worker(args):
     validate_task(task)
     task_hash = digest(task_bytes)
     state_path = Path(args.audit_dir) / ("task-" + task["task_id"] + ".json")
-    manager = Manager(getattr(args, "manager_dir", None))
+    manager = account_service(args)
     with worker_lock():
         identity = identify(manager)
         try:
@@ -1208,7 +1244,8 @@ def run_worker(args):
             command += ["--conversation", conversation]
         started = time.time()
         environment, proxy_source = cli_environment()
-        record = {"account_ref": identity["account_ref"], "status": "RUNNING", "started_at": started,
+        record = {"account_backend": "builtin" if getattr(manager, "is_builtin", False) is True else "tools",
+                  "account_ref": identity["account_ref"], "status": "RUNNING", "started_at": started,
                   "model": task["model"], "effort": task_effort(task), "task_sha256": task_hash,
                   "cli_path": str(executable), "cli_sha256": digest(executable.read_bytes()), "cwd": str(workspace),
                   "workspace_sha256": workspace_hash,
@@ -1300,7 +1337,8 @@ def run_worker(args):
                 record.update(outcome)
         save_json(attempt_dir / "result.json", record)
         save_json(state_path, state)
-        return {**outcome, "account_ref": identity["account_ref"], "result_file": str((attempt_dir / "result.json").resolve())}
+        return {**outcome, "account_backend": "builtin" if getattr(manager, "is_builtin", False) is True else "tools",
+                "account_ref": identity["account_ref"], "result_file": str((attempt_dir / "result.json").resolve())}
 
 
 def doctor(args):
@@ -1322,14 +1360,16 @@ def doctor(args):
                     raise WorkflowError("INVALID_CLI_PERMISSIONS")
         except (WorkflowError, OSError, ValueError) as error:
             checks["settings"].update(ok=False, reason=redact(str(error)))
+    if getattr(args, "account_backend", "builtin") == "builtin":
+        checks["account_backend"] = {"ok": True, "selected": "builtin", "tools_installation_required": False}
+    else:
+        try:
+            executable = paths.manager_executable(args.manager_cli)
+            checks["manager_executable"] = {"ok": True, "path": str(executable)}
+        except (OSError, ValueError) as error:
+            checks["manager_executable"] = {"ok": False, "reason": redact(str(error)), "required_for_startup": True}
     try:
-        executable = paths.manager_executable(args.manager_cli)
-        checks["manager_executable"] = {"ok": True, "path": str(executable)}
-    except (OSError, ValueError) as error:
-        # A running reachable manager is sufficient unless the user requests startup.
-        checks["manager_executable"] = {"ok": False, "reason": redact(str(error)), "required_for_startup": True}
-    try:
-        manager = Manager(args.manager_dir)
+        manager = account_service(args)
         accounts = manager.accounts(allow_local=True)
         checks["manager_inventory"] = {"ok": True, "count": len(accounts), "source": manager.inventory_source}
         checks["identity"] = {"ok": True, **identify(manager)}
@@ -1357,12 +1397,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     paths = sibling_module("runtime_paths")
-    for name in ("accounts", "identify", "models", "run", "switch", "doctor"):
+    for name in ("accounts", "identify", "models", "run", "switch", "doctor", "register-current"):
         command = commands.add_parser(name)
         command.add_argument("--audit-dir", required=True)
-        command.add_argument("--manager-dir", help="Antigravity Tools local data directory; also AGY_SUBAGENT_MANAGER_DIR")
+        command.add_argument("--manager-dir", "--account-dir", dest="manager_dir", help="upstream-compatible local account directory; also AGY_SUBAGENT_MANAGER_DIR")
+        command.add_argument("--account-backend", choices=("builtin", "tools"), default="builtin", help="bundled native core (default), or existing Antigravity Tools")
         command.add_argument("--manager-cli", help="installed Antigravity Tools executable; also AGY_SUBAGENT_MANAGER_CLI")
-        if name in {"accounts", "models", "run", "switch", "doctor"}:
+        if name in {"accounts", "models", "run", "switch", "doctor", "register-current"}:
             command.add_argument("--preflight-dir")
         if name in {"accounts", "switch"}:
             command.add_argument("--start-manager", action="store_true", help="start installed manager if unavailable: headless for quota refresh, native desktop backend for switching")
@@ -1392,6 +1433,12 @@ def main(argv=None):
     try:
         if args.command == "doctor":
             result = doctor(args)
+        elif args.command == "register-current":
+            require_receipt(args.preflight_dir)
+            if args.account_backend != "builtin":
+                raise WorkflowError("REGISTER_CURRENT_REQUIRES_BUILTIN_BACKEND")
+            with worker_lock():
+                result = account_service(args).register_current()
         elif args.command == "run":
             result = run_worker(args)
         elif args.command == "switch":
@@ -1400,7 +1447,7 @@ def main(argv=None):
                 other_sessions = cli_processes()
             except WorkflowError:
                 other_sessions = None
-            manager = Manager(args.manager_dir)
+            manager = account_service(args)
             with worker_lock(), manager_session(manager, start=args.start_manager, executable=args.manager_cli,
                                                  preflight_dir=args.preflight_dir, mode="desktop"):
                 result = update_cli_target(manager, args.account_ref, refresh_token=not args.no_refresh)
@@ -1424,7 +1471,7 @@ def main(argv=None):
                       "preflight": receipt, "proxy_source": proxy_source,
                       "exit_code": 0 if completed.returncode == 0 and slugs else 21}
         else:
-            manager = Manager(args.manager_dir)
+            manager = account_service(args)
             if args.command == "identify":
                 result = identify(manager)
                 if args.expect and args.expect != result["account_ref"]:

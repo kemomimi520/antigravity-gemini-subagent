@@ -6,16 +6,17 @@
 
 ## 1. 检查现有环境
 
-先读取 [环境配置](environment.md)，检查平台、Python、原生 `agy`、Antigravity Tools 和已有账号状态。完整运行流程支持 Windows；其他平台可以阅读源码和运行适用的离线测试。
+先读取 [环境配置](environment.md)，检查平台、Python、原生 `agy` 和已有账号状态。默认使用内置账号模块，无需安装 Antigravity Tools。完整运行流程支持 Windows；其他平台可以阅读源码和运行适用的离线测试。
 
 | 依赖 | 用途 | 缺失时的处理 |
 | --- | --- | --- |
 | Python | 运行辅助脚本，使用标准库 | 使用当前可用的 Python 发行版；已测试 3.11，不锁定补丁版本 |
 | Antigravity CLI | 原生模型调用与对话续接 | 按 [Google 安装说明](https://antigravity.google/docs/getting-started?tab=cli)安装，用户完成登录 |
-| Antigravity Tools | 账号身份校验、额度刷新、原生换号 | 按[上游项目安装说明](https://github.com/lbjlaq/Antigravity-Manager#installation)安装，用户完成所需账号登录或导入 |
+| 内置账号模块 | 账号身份校验、额度刷新、原生换号 | 随本仓库安装；已有兼容数据可复用，否则在 CLI 登录后登记当前账号 |
+| Antigravity Tools（可选） | 原来的桌面管理后端、尚未移植的代理池绑定 | 仅显式选择 `--account-backend tools` 时需要；按[上游安装说明](https://github.com/lbjlaq/Antigravity-Manager#installation)处理 |
 | 有效的本地预检记录 | 真实调用前的备份与还原点检查 | 使用本 skill 的 `scripts/prepare.ps1`，遵循当前主机的授权和预检规则 |
 
-Antigravity Tools 是当前实现的依赖，普通任务也会读取其账号清单。只安装了 CLI 或只在 CLI 中登录，不能替代管理工具的有效配置和匹配账号数据。没有管理工具的独立单账号模式尚未实现。
+新用户无需创建 Tools 的 GUI 配置或管理密钥。默认账号目录沿用 `.antigravity_tools`，只为兼容已有数据；空目录使用 `register-current` 从已登录 CLI 登记，不通过聊天粘贴或传递账号 token。移植范围和多账号登记见[内置账号模块](native-accounts.md)。
 
 发现已有软件时保留安装和账号配置，按能力检查兼容性，不强制匹配某个版本号。自定义路径使用 [environment.md](environment.md) 中的参数或环境变量。
 
@@ -35,7 +36,7 @@ Antigravity Tools 是当前实现的依赖，普通任务也会读取其账号�
 
 只要求安装 skill 时，可以完成源码安装及诊断，报告缺哪些依赖及对应安装来源。安装依赖的授权不包含登录新账号、导入其他人的凭证或新增账号权限；登录、OAuth 授权及用户未授权的账号导入由用户完成。账号 token、Cookie 和备份留在本机，不发送到模型或 GitHub。
 
-Antigravity Tools 安装完成后，还需要有效本地配置、管理认证和至少一个匹配 CLI 身份的账号。不要编造配置、账号文件或认证信息来让检查通过。管理服务仅用于账号管理，不需要将模型调用改成推理反代。
+内置模块会核对原生 CLI 的当前身份，需要至少一个匹配账号记录。用户登录由 CLI 完成，之后在有效预检下执行 `register-current`。只有显式选择 Tools 后端时，才检查其有效本地配置、管理认证和账号数据。不要编造配置或凭证让检查通过；模型调用始终使用原生 CLI。
 
 ## 4. 检查是否能使用
 
@@ -52,6 +53,7 @@ python -B scripts/workflow.py doctor --audit-dir <audit-dir>
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare.ps1
+python -B scripts/workflow.py register-current --audit-dir <audit-dir> --preflight-dir <receipt>
 python -B scripts/workflow.py doctor --audit-dir <audit-dir> --preflight-dir <receipt>
 python -B scripts/workflow.py identify --audit-dir <audit-dir>
 python -B scripts/workflow.py models --workspace <job-dir> --audit-dir <audit-dir> --preflight-dir <receipt>
@@ -59,7 +61,7 @@ python -B scripts/workflow.py models --workspace <job-dir> --audit-dir <audit-di
 
 用发现的实际 Gemini 模型执行一次无工具的简单任务并核对结果。该调用会使用模型额度，须在用户授权的安装验收范围内。默认安装验收不轮换全部账号，也不执行全面实测；换号测试仅在明确要求时进行。
 
-如果 Antigravity Tools 没有安装或尚未生成有效配置，`doctor` 返回 `NOT_READY`；直接调用可能返回 `BLOCKED` 和配置、文件或账号诊断。若只是未启动但已有有效配置，普通身份检查可使用本地缓存；刷新和换号仍需要管理服务。需要启动时使用受支持的启动方式，不关闭用户已有会话。
+已有匹配的兼容账号记录时可跳过登记。缺少 Python 或 CLI 时，按上表补齐；没有账号记录时，`doctor` 会给出 `ACCOUNT_STORE_EMPTY` 并提示登记。默认流程无需 Tools 管理服务。Tools 后端缺配置、未启动或认证失败时，按该后端诊断处理，不关闭用户已有会话。
 
 ## 5. 交付结果
 
@@ -70,3 +72,5 @@ python -B scripts/workflow.py models --workspace <job-dir> --audit-dir <audit-di
 - **真实调用已通过**：明确模型和思考强度下的一次简单任务返回且验收通过。
 
 有缺项就具体说明缺的软件、配置、登录或权限，以及已完成的步骤。不要声称换号、指纹写入或真实额度恢复已验证，除非本次实际执行并取得相应证据。
+
+分发时保留 [LICENSE](../LICENSE) 与 [NOTICE.md](../NOTICE.md)。本项目及移植部分采用 CC BY-NC-SA 4.0，包含非商业限制。

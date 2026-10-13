@@ -7,7 +7,7 @@ import re
 import zipfile
 
 
-ROOT_FILES = {'SKILL.md', 'README.md', 'README.zh-CN.md', 'LICENSE', '.gitignore'}
+ROOT_FILES = {'SKILL.md', 'README.md', 'README.zh-CN.md', 'LICENSE', 'NOTICE.md', '.gitignore'}
 PATTERNS = {
     'google_access_token': re.compile(r'ya29\.[A-Za-z0-9_-]{15,}'),
     'google_refresh_token': re.compile(r'1//[A-Za-z0-9_-]{15,}'),

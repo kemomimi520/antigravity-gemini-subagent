@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--model')
     parser.add_argument('--cli', default=str(w.sibling_module('runtime_paths').cli_path()))
     parser.add_argument('--manager-dir')
+    parser.add_argument('--account-backend', choices=('builtin', 'tools'), default='builtin')
     parser.add_argument('--manager-cli')
     parser.add_argument('--settings-file')
     parser.add_argument('--timeout', type=int, default=180)
@@ -43,7 +44,7 @@ def main():
 
     def invoke(command, extra):
         argv = [sys.executable, '-X', 'utf8', '-B', str(HELPER), command,
-                '--audit-dir', str(audit), *extra]
+                '--audit-dir', str(audit), '--account-backend', args.account_backend, *extra]
         for name in ('manager_dir', 'manager_cli'):
             if getattr(args, name):
                 argv += ['--' + name.replace('_', '-'), getattr(args, name)]
