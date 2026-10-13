@@ -1,5 +1,7 @@
 # Environment and discovery
 
+For model-assisted installation and missing dependencies, follow [installation.md](installation.md) ([简体中文](installation.zh-CN.md)).
+
 ## Supported environment
 
 The full workflow is implemented and live-tested on Windows. It uses Windows Credential Manager, PowerShell process discovery and the native Antigravity Tools desktop integration. Do not claim Linux/macOS support from upstream manager support or passing pure-Python fixtures.

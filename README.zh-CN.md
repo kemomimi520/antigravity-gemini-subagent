@@ -30,6 +30,21 @@
 
 ### 2. 安装 skill
 
+**方式一：把仓库交给模型安装**
+
+如果你使用的模型能联网并操作本地文件，可以直接把下面这段话发给它：
+
+```text
+请安装这个 skill，并补齐缺失的软件依赖：
+https://github.com/kemomimi520/antigravity-gemini-subagent
+先阅读仓库的 references/installation.zh-CN.md，按该页完成安装、依赖检查和验收。
+账号登录需要我操作时再提示我；已有软件和账号请保留。
+```
+
+[安装规范](references/installation.zh-CN.md)包含安装位置、缺失依赖的处理和验收标准。模型需要具备相应的本地操作权限；仓库私有时，还需要已有的 GitHub 访问权限。
+
+**方式二：手动安装**
+
 下载或克隆本仓库，将完整文件夹放入 Codex 的 skills 目录，文件夹名称保留为 `antigravity-gemini-subagent`。Windows 默认位置是：
 
 ```text
@@ -92,6 +107,14 @@ python scripts/workflow.py run --task <task.json> --workspace <job-dir> --audit-
 
 </details>
 
+## 必须安装 Antigravity Tools 吗？
+
+**当前版本需要。** 除了刷新额度和原生换号，普通任务也会用它的账号清单核对 CLI 的实际身份。模型请求仍由原生 `agy` 发出，无需通过管理工具的推理反代接口。
+
+没有安装时，可以先把 skill 文件放好，但环境检查会返回 `NOT_READY`，真实子代理任务无法正常运行。上面的安装提示词包含补齐依赖，模型可按[安装规范](references/installation.zh-CN.md)从上游来源安装缺失软件；账号登录由用户完成。只要求安装 skill 时，会报告缺失依赖，不会自行安装其他软件。
+
+“没安装”和“没启动”不同：已有有效配置和账号数据时，普通身份检查可以读取本地缓存；刷新额度和换号需要管理服务。当前没有仅依赖 CLI 的独立单账号模式。
+
 ## 工作方式
 
 模型请求由原生 `agy` 发送给 Gemini；Antigravity Tools 负责账号管理和原生切换。**本项目不通过账号管理工具的推理反代接口调用模型。** CLI 可以沿用已有的 HTTP 网络代理。
@@ -111,6 +134,7 @@ Windows 实测已覆盖 Gemini 调用、模型与思考强度选择、结构化�
 ## 文档与开发
 
 - [Skill 指令](SKILL.md)：Codex 如何使用这个子代理。
+- [安装规范](references/installation.zh-CN.md)：交给模型安装、补齐依赖与验收。
 - [环境配置](references/environment.md)：依赖、路径覆盖、网络和预检。
 - [任务协议](references/protocol.md)：输入、结果、工具权限和失败状态。
 - [账号切换](references/account-switch.md)：凭证、设备配置、验证与恢复。

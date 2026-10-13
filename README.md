@@ -30,6 +30,21 @@ Runtime helpers use only the Python standard library; Python 3.11 has been teste
 
 ### 2. Install the skill
 
+**Option A: ask your model to install it**
+
+If your model can access the web and operate on local files, send it this request:
+
+```text
+Install this skill and any missing software dependencies:
+https://github.com/kemomimi520/antigravity-gemini-subagent
+Read references/installation.md first and follow its installation, dependency-check and acceptance steps.
+Ask me to complete account sign-in when needed. Preserve existing software and accounts.
+```
+
+The [installation guide](references/installation.md) specifies the destination, missing-dependency handling and acceptance criteria. The model needs appropriate local permissions. A private repository also requires existing GitHub access.
+
+**Option B: install manually**
+
 Download or clone this repository into your Codex skills directory. Keep the complete folder and its name, `antigravity-gemini-subagent`. The default Windows location is:
 
 ```text
@@ -93,6 +108,14 @@ See the [task protocol](references/protocol.md) for options, JSON schemas and re
 
 </details>
 
+## Is Antigravity Tools required?
+
+**Yes, in the current implementation.** Besides quota refresh and native switching, ordinary tasks use its account inventory to verify the CLI's actual identity. Model requests still go through native `agy`; they do not require the manager's inference-proxy API.
+
+Without it, skill files can be installed, but environment checks report `NOT_READY` and real worker tasks cannot run normally. The request above includes missing dependencies, so the model can follow the [installation guide](references/installation.md) to obtain missing software from upstream sources. You complete account sign-in. A request to install only the skill reports missing dependencies without installing other software.
+
+Missing software differs from a stopped application: with valid configuration and account data, ordinary identity checks can use local cache; refresh and switching require the management service. There is currently no CLI-only standalone single-account mode.
+
 ## How it works
 
 Native `agy` sends model requests to Gemini. Antigravity Tools handles account management and native switching. **This project does not use the manager's inference-proxy API.** The CLI can inherit your existing HTTP network proxy.
@@ -112,6 +135,7 @@ Native CLI and Antigravity 2.0 share Windows account credentials, so account swi
 ## Documentation and development
 
 - [Skill instructions](SKILL.md): how Codex uses the worker.
+- [Installation guide](references/installation.md): model-assisted setup, dependencies and acceptance.
 - [Environment setup](references/environment.md): dependencies, paths, network and preflight.
 - [Task protocol](references/protocol.md): inputs, results, tool permissions and failure states.
 - [Account switching](references/account-switch.md): credentials, device profiles, checks and recovery.
