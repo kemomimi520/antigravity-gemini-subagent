@@ -1,0 +1,43 @@
+# Python/build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Runtime evidence is not source
+outputs/
+audit/
+audits/
+logs/
+backup/
+backups/
+rollback/
+*.log
+*.tmp
+*.zip
+planned-commands.txt
+system-state.txt
+restore-point.txt
+ROLLBACK.md
+
+# Local credentials/configuration/conversations
+.env
+.env.*
+!.env.example
+.antigravity_tools/
+.gemini/
+gui_config.json
+oauth_creds.json
+google_accounts.json
+antigravity-oauth-token
+settings.json
+jetski_state.pbtxt
+credentials.json
+accounts.json
+*.key
+*.pem
+*.pfx
