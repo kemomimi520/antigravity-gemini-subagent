@@ -2,111 +2,131 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A Codex skill for supervising bounded Gemini tasks through native Antigravity CLI (`agy`), with exact conversation continuation and verified native account switching through Antigravity Tools.
+**Delegate tasks from Codex to Gemini, then keep working in the same conversation.**
 
-The main agent supplies tasks and independently verifies answers. Python handles CLI invocation, protocol checks, identity, bounded retry state and native-switch postconditions. The worker does not inherit the main conversation. Quota recovery is a supervised sequence, not a background account rotator.
+This skill brings the native Antigravity CLI into a Codex workflow. Ask Gemini for another code review, help with a reasoning problem, or file work in a chosen project. Codex checks the result and brings it back into your task.
 
-## Supported behavior
+If an account runs out of quota partway through, Codex can use Antigravity Tools to switch to another existing account, verify the switch, and resume the original Gemini conversation.
 
-- Explicit discovered Gemini model and `low/medium/high` effort.
-- Streaming result capture, tool/permission checks, identity evidence and redacted audit records.
-- Exact conversation-ID continuation across a native account switch.
-- Existing-account quota refresh/ranking and recovery only for verified account-quota exhaustion.
-- Scoped temporary file permissions and supervisor-reviewed checkpoints after partial effects.
+## Features
 
-Inference uses native CLI, not manager inference-proxy APIs. Existing HTTP proxies may carry CLI traffic. No daily-version whitelist is used.
+| Feature | How it helps |
+| --- | --- |
+| Task delegation | Give Gemini a task, context, workspace and acceptance criteria |
+| Model and effort selection | Discover available models and choose `low`, `medium` or `high` effort |
+| Files and structured output | Work in a chosen directory or request a JSON schema result |
+| Follow-up conversations | Keep the conversation ID for questions, new constraints and unfinished work |
+| Account continuation | Resume the same conversation after a verified native switch for exhausted quota |
 
-## Requirements and installation
+Use it for a focused part of a larger task or an independent check of a conclusion. Codex prepares the context sent to Gemini and reviews what comes back.
 
-**Windows is the supported full-workflow platform.** Python, an already authenticated eligible `agy`, installed Antigravity Tools with existing accounts, and the managed preflight provider are required. Runtime/offline tests use Python standard library; Python 3.11 has been tested.
+## Quick start
 
-Place the complete folder, including `SKILL.md`, `agents`, `scripts` and `references`, in the receiving agent's configured skills directory. Preserve folder name `antigravity-gemini-subagent`. Read [environment requirements](references/environment.md) before live use.
+### 1. Prepare your environment
 
-`prepare.ps1` uses the existing host managed preflight when present, otherwise the bundled `managed_preflight.ps1`. Administrator rights and a created/recent restore point remain required. The fallback cannot bypass a failed host preflight. Copying the skill does not authorize elevation, create credentials or enable unavailable models. Do not fabricate a receipt.
+The complete workflow currently supports **Windows**. Install Python, the native [Antigravity CLI](https://antigravity.google/docs/cli/getting-started/) and [Antigravity Tools](https://github.com/lbjlaq/Antigravity-Manager), with an account already signed in and eligible for your chosen model.
 
-From this folder, inspect prerequisites without launching applications:
+Runtime helpers use only the Python standard library; Python 3.11 has been tested. Models are discovered from the CLI, with no daily-version allowlist.
 
-```powershell
-python scripts/workflow.py doctor --audit-dir <authorized-audit-dir>
-python scripts/workflow.py identify --audit-dir <authorized-audit-dir>
+### 2. Install the skill
+
+Download or clone this repository into your Codex skills directory. Keep the complete folder and its name, `antigravity-gemini-subagent`. The default Windows location is:
+
+```text
+%USERPROFILE%\.codex\skills\antigravity-gemini-subagent
 ```
 
-Doctor without a successful receipt reports the missing preflight as `NOT_READY`; this is expected before preparation. After authorized preparation, rerun it with `--preflight-dir <successful-receipt>`.
+First use requires a local preflight and backup, including administrator rights and a system restore point. See [environment setup](references/environment.md) for custom paths and preparation steps.
 
-| Purpose | Flag | Environment variable |
-| --- | --- | --- |
-| Manager data | `--manager-dir` | `AGY_SUBAGENT_MANAGER_DIR` |
-| Manager executable | `--manager-cli` | `AGY_SUBAGENT_MANAGER_CLI` |
-| CLI executable (`models/run/doctor`) | `--cli` | `AGY_SUBAGENT_CLI` |
-| Permission settings (`run/doctor`) | `--settings-file` | `AGY_SUBAGENT_SETTINGS` |
+### 3. Use it in Codex
 
-Settings override must point to the file the CLI actually loads; it does not redirect native configuration. Pass custom data/settings paths to `prepare.ps1` through `-ManagerDir/-SettingsFile` for backup coverage. [Environment](references/environment.md) explains defaults and discovery.
+For example, ask Gemini to review code:
 
-## First bounded task
-
-After authorized preflight succeeds, discover models:
-
-```powershell
-python scripts/workflow.py models --workspace <authorized-job-dir> --audit-dir <authorized-audit-dir> --preflight-dir <successful-receipt>
+```text
+Use $antigravity-gemini-subagent to review src/parser.py in this project.
+Choose a currently available Gemini model with high effort.
+Read files only. Focus on edge cases and give concrete inputs and fixes.
+Check its findings before reporting them to me.
 ```
 
-Save UTF-8 task JSON. Replace the illustrative model with a discovered Gemini slug; example content is synthetic:
+Then follow up:
+
+```text
+Continue that Gemini subagent conversation and ask for test cases
+for the issues we confirmed.
+```
+
+Codex prepares the task, invokes the CLI, saves the conversation ID and checks the result. You can also name a specific currently available model in your request.
+
+<details>
+<summary>Call the scripts directly</summary>
+
+Run from the skill directory. Replace angle-bracket placeholders with your actual paths:
+
+```powershell
+python scripts/workflow.py doctor --audit-dir <audit-dir>
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare.ps1
+python scripts/workflow.py models --workspace <job-dir> --audit-dir <audit-dir> --preflight-dir <receipt>
+```
+
+`receipt` is the directory produced by a successful preflight. Before preparation, `doctor` may report `NOT_READY` because that record is missing.
+
+Save this task as UTF-8 `task.json`, replacing `model` with an actual discovered model name:
 
 ```json
 {
-  "task_id": "sum-example",
-  "model": "gemini-<discovered-slug>",
+  "task_id": "copy-explanation",
+  "model": "gemini-REPLACE_WITH_DISCOVERED_MODEL",
   "effort": "medium",
-  "prompt": "Without tools calculate 17 + 25 and return the requested JSON object.",
-  "acceptance": "structured_output equals {\"sum\":42}; no tools",
+  "prompt": "Explain shallow and deep copies in Python using a nested list example. Do not use tools.",
+  "acceptance": "Accurate explanation; example shows the results after a nested element changes; no tool calls.",
   "read_only": true,
-  "retry_safe": true,
-  "max_attempts": 3,
-  "json_schema": {
-    "type": "object",
-    "properties": {"sum": {"type": "integer"}},
-    "required": ["sum"],
-    "additionalProperties": false
-  }
+  "retry_safe": true
 }
 ```
 
 ```powershell
-python scripts/workflow.py run --task <task.json> --workspace <authorized-job-dir> --audit-dir <authorized-audit-dir> --preflight-dir <successful-receipt>
+python scripts/workflow.py run --task <task.json> --workspace <job-dir> --audit-dir <audit-dir> --preflight-dir <receipt>
 ```
 
-Independently verify `structured_output` equals `{"sum":42}`. The acceptance string guides the worker; arbitrary prose acceptance cannot be automatically judged by the helper. Exit 0/schema validity does not prove correctness.
+See the [task protocol](references/protocol.md) for options, JSON schemas and result fields.
 
-For a follow-up, create a new task ID and include the prior `conversation_id`. The helper uses exact native `--conversation`, never guesses the latest session. See [protocol](references/protocol.md) and [checkpoints](references/conversation.md).
+</details>
 
-## Recovery and account effects
+## How it works
 
-After confirmed `QUOTA_EXHAUSTED`, the main agent refreshes all existing accounts, selects fresh quota for the same model, performs native `agy` switching, verifies identity and resumes. `max_attempts` defaults to 3; explicit positive integers allow a larger finite budget. Failed accounts are not retried. Generic 429/`RESOURCE_EXHAUSTED`, overload, eligibility/authentication, network or timeout failures do not authorize rotation.
+Native `agy` sends model requests to Gemini. Antigravity Tools handles account management and native switching. **This project does not use the manager's inference-proxy API.** The CLI can inherit your existing HTTP network proxy.
 
-Read [native switching/rollback](references/account-switch.md) before use. Native CLI and Antigravity 2.0 share Windows credentials. The per-operation lock does not stop external sessions/apps from changing identity; serialize the complete workflow. Unknown switch outcomes are retained for inspection. No UI clicks, account creation, purchases or model downgrades are used.
+Switching uses Antigravity Tools' credential and device-profile logic, followed by identity and applicable storage checks. Conversations resume with an explicit `conversation_id`. If a previous call changed files, Codex checks completed effects before continuing so that work is not repeated.
 
-`read_only` is CLI plan mode, **not an OS security boundary**. Global rules/MCP configuration may load. Only pass authorized data. Inspect real file diffs before resuming partial effects.
+Codex coordinates quota recovery: confirm exhaustion → refresh existing account quotas → switch natively and verify → resume the original conversation. Network errors, service overload and authentication failures do not trigger switching. See [account switching](references/account-switch.md) and [conversation continuation](references/conversation.md).
 
-## Tests and evidence
+## Validation and limits
+
+Live Windows checks cover Gemini calls, model and effort selection, structured output, file work, and continuation across a native account switch. GitHub CI runs synthetic offline regressions and source checks without real accounts.
+
+The complete recovery path triggered by genuinely exhausted quota has not been live-tested. Legacy fingerprint-store writes have synthetic and source-review coverage only. Model verification checks the CLI-selected name, not the server's internal model identifier. See [test coverage](references/test-workflow.md).
+
+Native CLI and Antigravity 2.0 share Windows account credentials, so account switches need coordination with other sessions. Read-only mode uses CLI plan mode rather than OS-level isolation. Review task output, and keep logs and backups local; they may contain sensitive data.
+
+## Documentation and development
+
+- [Skill instructions](SKILL.md): how Codex uses the worker.
+- [Environment setup](references/environment.md): dependencies, paths, network and preflight.
+- [Task protocol](references/protocol.md): inputs, results, tool permissions and failure states.
+- [Account switching](references/account-switch.md): credentials, device profiles, checks and recovery.
+- [Conversation continuation](references/conversation.md): follow-ups and file checkpoints.
+- [Test workflow](references/test-workflow.md): offline checks and live acceptance.
+
+Run offline checks:
 
 ```powershell
 python -B -m unittest discover -s tests -v
+python -B scripts/package_skill.py
 ```
 
-Offline tests use synthetic state and need no real account credentials. CI runs offline checks only. Live scripts need authorization, valid preflight and model-call quota. [Test workflow](references/test-workflow.md) separates these cases.
+Commit source, documentation and synthetic tests only. Keep account credentials, task logs, conversations and rollback backups out of the repository. The source checker covers an explicit file allowlist and common secret patterns.
 
-Prior live acceptance established worker responses, native account switching, exact-ID cross-account continuation and checkpointed file work on the tested Windows host. That host had no legacy fingerprint/database stores, so their actual writes were not live-verified. A truly exhausted account has not triggered the entire live recovery chain. Do not claim complete live coverage or manufacture exhaustion.
+## License
 
-`model_verified` means CLI init matched the requested slug, not that the server backend identifier matched. A prior diagnostic model probe is not a portable production feature. Model suffixes/knowledge questions do not establish official model capability.
-
-## Publishing and privacy
-
-Publish source/docs/synthetic tests only. Keep tasks, outputs, logs, account inventories, conversation stores, credentials and preflight rollback bundles outside source control. `.gitignore` prevents some accidental additions; it does not scrub secrets or undo commits. Review the package/staged content before publishing. Run `python scripts/package_skill.py --root <skill>` for a source/secret-pattern check. Add `--output <new-zip-outside-source>` to create a source-only ZIP; existing packages are not overwritten. This scan does not read private account directories or certify the absence of every secret.
-
-Redaction recognizes known token/email patterns; it cannot guarantee removal of arbitrary secrets, private paths or task data. Native logs can contain sensitive content before postprocessing; abrupt termination may leave unsanitized records. Backups intentionally preserve full state including credentials. Never upload them. For a published secret, revoke/rotate it and follow [GitHub removal guidance](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).
-
-Helper replacements copy and verify the existing file's Windows DACL and inheritance-protection state before writing private contents. A failed security copy stops the write; it does not relax access. This preserves DACLs, not every file attribute, owner or SACL, and does not control writes performed internally by the native CLI or manager.
-
-The repository license has not been selected. Choose/add a license before public release; this README implies no license grant.
-
-Primary references: [CLI headless documentation](https://antigravity.google/docs/cli/headless/) and [native manager integration](https://github.com/lbjlaq/Antigravity-Manager/blob/main/src-tauri/src/modules/integration.rs).
+License pending.
